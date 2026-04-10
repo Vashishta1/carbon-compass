@@ -1,248 +1,270 @@
-import { useState, useEffect, useCallback } from 'react';
-import { 
-  EmissionEntry, 
-  CarbonCredit, 
-  EmissionSummary, 
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  EmissionEntry,
+  CarbonCredit,
+  EmissionSummary,
   AnomalyAlert,
   Forecast,
   EmissionCategory
 } from '@/types/carbon';
 
-// Mock data for demonstration
-const generateMockEmissions = (): EmissionEntry[] => {
-  const categories: EmissionCategory[] = [
-    'fuel_consumption', 'electricity', 'raw_materials', 
-    'transportation', 'employee_travel', 'waste', 'production'
-  ];
-  
-  const entries: EmissionEntry[] = [];
-  const now = new Date();
-  
-  for (let i = 11; i >= 0; i--) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    // Generate entries for each category
-    categories.forEach((category, idx) => {
-      const baseValue = Math.random() * 1000 + 500;
-      const scope = category === 'fuel_consumption' || category === 'production' ? 1 
-        : category === 'electricity' ? 2 : 3;
-      
-      // Add some anomalies
-      const isAnomaly = Math.random() < 0.05;
-      const multiplier = isAnomaly ? 2.5 : 1;
-      
-      entries.push({
-        id: `${dateStr}-${category}`,
-        date: dateStr,
-        category,
-        scope: scope as 1 | 2 | 3,
-        value: baseValue * multiplier,
-        unit: category === 'electricity' ? 'kWh' : category === 'fuel_consumption' ? 'liters' : 'kg',
-        co2Equivalent: (baseValue * multiplier) * (0.3 + Math.random() * 0.5),
-        source: 'Manual Entry',
-        isAnomaly,
-      });
-    });
-  }
-  
-  return entries;
-};
-
-const generateMockCredits = (): CarbonCredit[] => [
-  {
-    id: 'cc-001',
-    type: 'VCS',
-    quantity: 5000,
-    purchaseDate: '2025-01-15',
-    expiryDate: '2027-01-15',
-    cost: 75000,
-    currency: 'USD',
-    projectName: 'Amazon Rainforest Conservation',
-    status: 'active',
-    usedQuantity: 1200,
-  },
-  {
-    id: 'cc-002',
-    type: 'Gold Standard',
-    quantity: 2500,
-    purchaseDate: '2025-06-01',
-    expiryDate: '2028-06-01',
-    cost: 45000,
-    currency: 'USD',
-    projectName: 'Wind Farm Development - Gujarat',
-    status: 'active',
-    usedQuantity: 500,
-  },
-  {
-    id: 'cc-003',
-    type: 'CDM',
-    quantity: 1000,
-    purchaseDate: '2024-03-10',
-    expiryDate: '2025-03-10',
-    cost: 12000,
-    currency: 'USD',
-    projectName: 'Methane Capture - Landfill',
-    status: 'expired',
-    usedQuantity: 1000,
-  },
-];
-
-const generateMockAlerts = (emissions: EmissionEntry[]): AnomalyAlert[] => {
-  return emissions
-    .filter(e => e.isAnomaly)
-    .map(e => ({
-      id: `alert-${e.id}`,
-      entryId: e.id,
-      type: 'spike' as const,
-      severity: 'high' as const,
-      message: `Unusual ${e.category.replace('_', ' ')} detected: ${e.co2Equivalent.toFixed(0)} kg CO2e (150% above average)`,
-      detectedAt: new Date().toISOString(),
-      resolved: false,
-    }));
-};
-
-const generateForecasts = (): Forecast[] => {
-  const forecasts: Forecast[] = [];
-  const now = new Date();
-  
-  for (let i = 1; i <= 6; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const baseEmission = 15000 + Math.random() * 2000;
-    
-    forecasts.push({
-      period: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      predictedEmissions: baseEmission,
-      confidenceInterval: {
-        lower: baseEmission * 0.85,
-        upper: baseEmission * 1.15,
-      },
-      scope1: baseEmission * 0.35,
-      scope2: baseEmission * 0.40,
-      scope3: baseEmission * 0.25,
-    });
-  }
-  
-  return forecasts;
-};
-
 export function useCarbonData() {
+  const { user } = useAuth();
   const [emissions, setEmissions] = useState<EmissionEntry[]>([]);
   const [credits, setCredits] = useState<CarbonCredit[]>([]);
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
   const [forecasts, setForecasts] = useState<Forecast[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Simulate loading data
-    const timer = setTimeout(() => {
-      const mockEmissions = generateMockEmissions();
-      setEmissions(mockEmissions);
-      setCredits(generateMockCredits());
-      setAlerts(generateMockAlerts(mockEmissions));
-      setForecasts(generateForecasts());
-      setIsLoading(false);
-    }, 800);
+  // Fetch emissions from Supabase
+  const fetchEmissions = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('emissions')
+      .select('*')
+      .order('date', { ascending: false });
 
-    return () => clearTimeout(timer);
-  }, []);
+    if (!error && data) {
+      setEmissions(data.map(e => ({
+        id: e.id,
+        date: e.date,
+        category: e.category as EmissionCategory,
+        scope: e.scope as 1 | 2 | 3,
+        value: Number(e.value),
+        unit: e.unit,
+        co2Equivalent: Number(e.co2_equivalent),
+        source: e.source,
+        notes: e.notes || undefined,
+        isAnomaly: e.is_anomaly || false,
+      })));
+    }
+  }, [user]);
+
+  // Fetch credits from Supabase
+  const fetchCredits = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('carbon_credits')
+      .select('*')
+      .order('purchase_date', { ascending: false });
+
+    if (!error && data) {
+      setCredits(data.map(c => ({
+        id: c.id,
+        type: c.type as CarbonCredit['type'],
+        quantity: Number(c.quantity),
+        purchaseDate: c.purchase_date,
+        expiryDate: c.expiry_date,
+        cost: Number(c.cost),
+        currency: c.currency,
+        projectName: c.project_name,
+        status: c.status as CarbonCredit['status'],
+        usedQuantity: Number(c.used_quantity),
+      })));
+    }
+  }, [user]);
+
+  // Fetch alerts from Supabase
+  const fetchAlerts = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('anomaly_alerts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setAlerts(data.map(a => ({
+        id: a.id,
+        entryId: a.emission_id || '',
+        type: a.type as AnomalyAlert['type'],
+        severity: a.severity as AnomalyAlert['severity'],
+        message: a.message,
+        detectedAt: a.created_at,
+        resolved: a.resolved,
+      })));
+    }
+  }, [user]);
+
+  // Generate forecasts based on existing data
+  const generateForecasts = useCallback((): Forecast[] => {
+    if (emissions.length === 0) return [];
+    const now = new Date();
+    const result: Forecast[] = [];
+
+    // Calculate average monthly emissions from data
+    const monthlyTotals: Record<string, { scope1: number; scope2: number; scope3: number; total: number }> = {};
+    emissions.forEach(e => {
+      const key = e.date.substring(0, 7);
+      if (!monthlyTotals[key]) monthlyTotals[key] = { scope1: 0, scope2: 0, scope3: 0, total: 0 };
+      monthlyTotals[key][`scope${e.scope}` as 'scope1' | 'scope2' | 'scope3'] += e.co2Equivalent;
+      monthlyTotals[key].total += e.co2Equivalent;
+    });
+
+    const months = Object.values(monthlyTotals);
+    if (months.length === 0) return [];
+    const avgTotal = months.reduce((s, m) => s + m.total, 0) / months.length;
+    const avgS1 = months.reduce((s, m) => s + m.scope1, 0) / months.length;
+    const avgS2 = months.reduce((s, m) => s + m.scope2, 0) / months.length;
+    const avgS3 = months.reduce((s, m) => s + m.scope3, 0) / months.length;
+
+    for (let i = 1; i <= 6; i++) {
+      const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const variance = 0.9 + Math.random() * 0.2;
+      const predicted = avgTotal * variance;
+      result.push({
+        period: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        predictedEmissions: predicted,
+        confidenceInterval: { lower: predicted * 0.85, upper: predicted * 1.15 },
+        scope1: avgS1 * variance,
+        scope2: avgS2 * variance,
+        scope3: avgS3 * variance,
+      });
+    }
+    return result;
+  }, [emissions]);
+
+  useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    Promise.all([fetchEmissions(), fetchCredits(), fetchAlerts()])
+      .finally(() => setIsLoading(false));
+  }, [user, fetchEmissions, fetchCredits, fetchAlerts]);
+
+  useEffect(() => {
+    setForecasts(generateForecasts());
+  }, [emissions, generateForecasts]);
 
   const getSummary = useCallback((): EmissionSummary => {
-    const currentMonthEmissions = emissions.filter(e => {
-      const entryDate = new Date(e.date);
-      const now = new Date();
-      return entryDate.getMonth() === now.getMonth() && 
-             entryDate.getFullYear() === now.getFullYear();
+    const now = new Date();
+    const currentMonth = emissions.filter(e => {
+      const d = new Date(e.date);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+    const lastMonth = emissions.filter(e => {
+      const d = new Date(e.date);
+      const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
     });
 
-    const lastMonthEmissions = emissions.filter(e => {
-      const entryDate = new Date(e.date);
-      const now = new Date();
-      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      return entryDate.getMonth() === lastMonth.getMonth() && 
-             entryDate.getFullYear() === lastMonth.getFullYear();
-    });
-
-    const totalCurrent = currentMonthEmissions.reduce((sum, e) => sum + e.co2Equivalent, 0);
-    const totalLast = lastMonthEmissions.reduce((sum, e) => sum + e.co2Equivalent, 0);
-    
-    const scope1 = currentMonthEmissions
-      .filter(e => e.scope === 1)
-      .reduce((sum, e) => sum + e.co2Equivalent, 0);
-    const scope2 = currentMonthEmissions
-      .filter(e => e.scope === 2)
-      .reduce((sum, e) => sum + e.co2Equivalent, 0);
-    const scope3 = currentMonthEmissions
-      .filter(e => e.scope === 3)
-      .reduce((sum, e) => sum + e.co2Equivalent, 0);
-
-    const byCategory = currentMonthEmissions.reduce((acc, e) => {
+    const totalCurrent = currentMonth.reduce((s, e) => s + e.co2Equivalent, 0);
+    const totalLast = lastMonth.reduce((s, e) => s + e.co2Equivalent, 0);
+    const scope1 = currentMonth.filter(e => e.scope === 1).reduce((s, e) => s + e.co2Equivalent, 0);
+    const scope2 = currentMonth.filter(e => e.scope === 2).reduce((s, e) => s + e.co2Equivalent, 0);
+    const scope3 = currentMonth.filter(e => e.scope === 3).reduce((s, e) => s + e.co2Equivalent, 0);
+    const byCategory = currentMonth.reduce((acc, e) => {
       acc[e.category] = (acc[e.category] || 0) + e.co2Equivalent;
       return acc;
     }, {} as Record<EmissionCategory, number>);
-
-    const percentageChange = totalLast > 0 
-      ? ((totalCurrent - totalLast) / totalLast) * 100 
-      : 0;
+    const pctChange = totalLast > 0 ? ((totalCurrent - totalLast) / totalLast) * 100 : 0;
 
     return {
       totalEmissions: totalCurrent,
-      scope1,
-      scope2,
-      scope3,
+      scope1, scope2, scope3,
       byCategory,
-      trend: percentageChange > 5 ? 'increasing' : percentageChange < -5 ? 'decreasing' : 'stable',
-      percentageChange,
+      trend: pctChange > 5 ? 'increasing' : pctChange < -5 ? 'decreasing' : 'stable',
+      percentageChange: pctChange,
     };
   }, [emissions]);
 
   const getCreditSummary = useCallback(() => {
-    const activeCredits = credits.filter(c => c.status === 'active');
-    const totalCredits = activeCredits.reduce((sum, c) => sum + c.quantity, 0);
-    const usedCredits = activeCredits.reduce((sum, c) => sum + c.usedQuantity, 0);
-    const totalValue = activeCredits.reduce((sum, c) => sum + c.cost, 0);
-
+    const active = credits.filter(c => c.status === 'active');
     return {
-      totalCredits,
-      usedCredits,
-      availableCredits: totalCredits - usedCredits,
-      totalValue,
-      activeCount: activeCredits.length,
+      totalCredits: active.reduce((s, c) => s + c.quantity, 0),
+      usedCredits: active.reduce((s, c) => s + c.usedQuantity, 0),
+      availableCredits: active.reduce((s, c) => s + c.quantity - c.usedQuantity, 0),
+      totalValue: active.reduce((s, c) => s + c.cost, 0),
+      activeCount: active.length,
     };
   }, [credits]);
 
-  const addEmission = useCallback((entry: Omit<EmissionEntry, 'id'>) => {
-    const newEntry: EmissionEntry = {
-      ...entry,
-      id: `entry-${Date.now()}`,
-    };
-    setEmissions(prev => [...prev, newEntry]);
-    return newEntry;
-  }, []);
+  const addEmission = useCallback(async (entry: Omit<EmissionEntry, 'id'>) => {
+    if (!user) return null;
+    const { data, error } = await supabase
+      .from('emissions')
+      .insert({
+        user_id: user.id,
+        date: entry.date,
+        category: entry.category,
+        scope: entry.scope,
+        value: entry.value,
+        unit: entry.unit,
+        co2_equivalent: entry.co2Equivalent,
+        source: entry.source,
+        notes: entry.notes || null,
+        is_anomaly: entry.isAnomaly || false,
+      })
+      .select()
+      .single();
 
-  const addCredit = useCallback((credit: Omit<CarbonCredit, 'id'>) => {
-    const newCredit: CarbonCredit = {
-      ...credit,
-      id: `cc-${Date.now()}`,
-    };
-    setCredits(prev => [...prev, newCredit]);
-    return newCredit;
-  }, []);
+    if (!error && data) {
+      // Check for anomaly (simple spike detection)
+      const categoryAvg = emissions
+        .filter(e => e.category === entry.category)
+        .reduce((s, e) => s + e.co2Equivalent, 0) / Math.max(emissions.filter(e => e.category === entry.category).length, 1);
 
-  const resolveAlert = useCallback((alertId: string) => {
-    setAlerts(prev => 
-      prev.map(a => a.id === alertId ? { ...a, resolved: true } : a)
-    );
-  }, []);
+      if (categoryAvg > 0 && entry.co2Equivalent > categoryAvg * 2) {
+        await supabase.from('anomaly_alerts').insert({
+          user_id: user.id,
+          emission_id: data.id,
+          type: 'spike',
+          severity: 'high',
+          message: `Unusual ${entry.category.replace('_', ' ')} detected: ${entry.co2Equivalent.toFixed(0)} kg CO₂e (${((entry.co2Equivalent / categoryAvg) * 100).toFixed(0)}% of average)`,
+        });
+        await fetchAlerts();
+      }
+
+      await fetchEmissions();
+      return data;
+    }
+    return null;
+  }, [user, emissions, fetchEmissions, fetchAlerts]);
+
+  const addCredit = useCallback(async (credit: Omit<CarbonCredit, 'id'>) => {
+    if (!user) return null;
+    const { data, error } = await supabase
+      .from('carbon_credits')
+      .insert({
+        user_id: user.id,
+        type: credit.type,
+        quantity: credit.quantity,
+        purchase_date: credit.purchaseDate,
+        expiry_date: credit.expiryDate,
+        cost: credit.cost,
+        currency: credit.currency,
+        project_name: credit.projectName,
+        status: credit.status,
+        used_quantity: credit.usedQuantity,
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      await fetchCredits();
+      return data;
+    }
+    return null;
+  }, [user, fetchCredits]);
+
+  const resolveAlert = useCallback(async (alertId: string) => {
+    if (!user) return;
+    await supabase
+      .from('anomaly_alerts')
+      .update({ resolved: true })
+      .eq('id', alertId);
+    setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, resolved: true } : a));
+  }, [user]);
 
   const getMonthlyTrends = useCallback(() => {
     const grouped = emissions.reduce((acc, e) => {
-      const monthKey = e.date.substring(0, 7); // YYYY-MM
-      if (!acc[monthKey]) {
-        acc[monthKey] = { scope1: 0, scope2: 0, scope3: 0, total: 0 };
-      }
-      acc[monthKey][`scope${e.scope}` as 'scope1' | 'scope2' | 'scope3'] += e.co2Equivalent;
-      acc[monthKey].total += e.co2Equivalent;
+      const key = e.date.substring(0, 7);
+      if (!acc[key]) acc[key] = { scope1: 0, scope2: 0, scope3: 0, total: 0 };
+      acc[key][`scope${e.scope}` as 'scope1' | 'scope2' | 'scope3'] += e.co2Equivalent;
+      acc[key].total += e.co2Equivalent;
       return acc;
     }, {} as Record<string, { scope1: number; scope2: number; scope3: number; total: number }>);
 
@@ -255,16 +277,8 @@ export function useCarbonData() {
   }, [emissions]);
 
   return {
-    emissions,
-    credits,
-    alerts,
-    forecasts,
-    isLoading,
-    getSummary,
-    getCreditSummary,
-    getMonthlyTrends,
-    addEmission,
-    addCredit,
-    resolveAlert,
+    emissions, credits, alerts, forecasts, isLoading,
+    getSummary, getCreditSummary, getMonthlyTrends,
+    addEmission, addCredit, resolveAlert, fetchEmissions, fetchCredits,
   };
 }
