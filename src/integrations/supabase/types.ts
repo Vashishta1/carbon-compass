@@ -14,7 +14,170 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      anomaly_alerts: {
+        Row: {
+          created_at: string
+          emission_id: string | null
+          id: string
+          message: string
+          resolved: boolean
+          severity: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emission_id?: string | null
+          id?: string
+          message: string
+          resolved?: boolean
+          severity?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emission_id?: string | null
+          id?: string
+          message?: string
+          resolved?: boolean
+          severity?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anomaly_alerts_emission_id_fkey"
+            columns: ["emission_id"]
+            isOneToOne: false
+            referencedRelation: "emissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      carbon_credits: {
+        Row: {
+          cost: number
+          created_at: string
+          currency: string
+          expiry_date: string
+          id: string
+          project_name: string
+          purchase_date: string
+          quantity: number
+          status: string
+          type: string
+          updated_at: string
+          used_quantity: number
+          user_id: string
+        }
+        Insert: {
+          cost: number
+          created_at?: string
+          currency?: string
+          expiry_date: string
+          id?: string
+          project_name: string
+          purchase_date: string
+          quantity: number
+          status?: string
+          type: string
+          updated_at?: string
+          used_quantity?: number
+          user_id: string
+        }
+        Update: {
+          cost?: number
+          created_at?: string
+          currency?: string
+          expiry_date?: string
+          id?: string
+          project_name?: string
+          purchase_date?: string
+          quantity?: number
+          status?: string
+          type?: string
+          updated_at?: string
+          used_quantity?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      emissions: {
+        Row: {
+          category: string
+          co2_equivalent: number
+          created_at: string
+          date: string
+          id: string
+          is_anomaly: boolean | null
+          notes: string | null
+          scope: number
+          source: string
+          unit: string
+          updated_at: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          category: string
+          co2_equivalent: number
+          created_at?: string
+          date: string
+          id?: string
+          is_anomaly?: boolean | null
+          notes?: string | null
+          scope: number
+          source?: string
+          unit: string
+          updated_at?: string
+          user_id: string
+          value: number
+        }
+        Update: {
+          category?: string
+          co2_equivalent?: number
+          created_at?: string
+          date?: string
+          id?: string
+          is_anomaly?: boolean | null
+          notes?: string | null
+          scope?: number
+          source?: string
+          unit?: string
+          updated_at?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          company_name: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
