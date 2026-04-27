@@ -21,6 +21,8 @@ import {
   File
 } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { generatePDFReport, generateExcelReport } from '@/lib/reportGenerator';
 
 const reportTypes = [
   {
@@ -61,12 +63,45 @@ const recentReports = [
 ];
 
 export default function Reports() {
-  const { alerts, getSummary, getCreditSummary } = useCarbonData();
+  const { emissions, credits, alerts, getSummary, getCreditSummary } = useCarbonData();
   const [selectedPeriod, setSelectedPeriod] = useState('current-month');
-  
+  const [reportType, setReportType] = useState('monthly');
+  const [format, setFormat] = useState('pdf');
+  const [generating, setGenerating] = useState(false);
+
   const summary = getSummary();
   const creditSummary = getCreditSummary();
   const unresolvedAlerts = alerts.filter(a => !a.resolved);
+
+  const handleGenerate = () => {
+    if (emissions.length === 0 && credits.length === 0) {
+      toast.error('No data available. Add emissions or credits first.');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const payload = {
+        reportType,
+        period: selectedPeriod,
+        emissions,
+        credits,
+        alerts,
+        summary,
+        creditSummary,
+      };
+      if (format === 'pdf') {
+        generatePDFReport(payload);
+      } else {
+        generateExcelReport(payload);
+      }
+      toast.success(`${format.toUpperCase()} report downloaded`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate report');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
     <AppLayout 
