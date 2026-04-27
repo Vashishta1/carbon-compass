@@ -21,6 +21,8 @@ import {
   File
 } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { generatePDFReport, generateExcelReport } from '@/lib/reportGenerator';
 
 const reportTypes = [
   {
@@ -61,12 +63,45 @@ const recentReports = [
 ];
 
 export default function Reports() {
-  const { alerts, getSummary, getCreditSummary } = useCarbonData();
+  const { emissions, credits, alerts, getSummary, getCreditSummary } = useCarbonData();
   const [selectedPeriod, setSelectedPeriod] = useState('current-month');
-  
+  const [reportType, setReportType] = useState('monthly');
+  const [format, setFormat] = useState('pdf');
+  const [generating, setGenerating] = useState(false);
+
   const summary = getSummary();
   const creditSummary = getCreditSummary();
   const unresolvedAlerts = alerts.filter(a => !a.resolved);
+
+  const handleGenerate = () => {
+    if (emissions.length === 0 && credits.length === 0) {
+      toast.error('No data available. Add emissions or credits first.');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const payload = {
+        reportType,
+        period: selectedPeriod,
+        emissions,
+        credits,
+        alerts,
+        summary,
+        creditSummary,
+      };
+      if (format === 'pdf') {
+        generatePDFReport(payload);
+      } else {
+        generateExcelReport(payload);
+      }
+      toast.success(`${format.toUpperCase()} report downloaded`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate report');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
     <AppLayout 
@@ -84,7 +119,7 @@ export default function Reports() {
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <label className="text-sm font-medium mb-2 block">Report Type</label>
-              <Select defaultValue="monthly">
+              <Select value={reportType} onValueChange={setReportType}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -115,7 +150,7 @@ export default function Reports() {
             </div>
             <div className="flex-1">
               <label className="text-sm font-medium mb-2 block">Format</label>
-              <Select defaultValue="pdf">
+              <Select value={format} onValueChange={setFormat}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -136,9 +171,9 @@ export default function Reports() {
               </Select>
             </div>
             <div className="flex items-end">
-              <Button className="gap-2">
+              <Button className="gap-2" onClick={handleGenerate} disabled={generating}>
                 <Download className="w-4 h-4" />
-                Generate
+                {generating ? 'Generating…' : 'Generate'}
               </Button>
             </div>
           </div>
@@ -240,7 +275,7 @@ export default function Reports() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{report.type}</Badge>
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" onClick={handleGenerate}>
                     <Download className="w-4 h-4" />
                   </Button>
                 </div>
