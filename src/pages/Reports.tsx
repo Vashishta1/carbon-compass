@@ -119,7 +119,7 @@ export default function Reports() {
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <label className="text-sm font-medium mb-2 block">Report Type</label>
-              <Select defaultValue="monthly">
+              <Select value={reportType} onValueChange={setReportType}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -150,7 +150,7 @@ export default function Reports() {
             </div>
             <div className="flex-1">
               <label className="text-sm font-medium mb-2 block">Format</label>
-              <Select defaultValue="pdf">
+              <Select value={format} onValueChange={setFormat}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -171,9 +171,9 @@ export default function Reports() {
               </Select>
             </div>
             <div className="flex items-end">
-              <Button className="gap-2">
+              <Button className="gap-2" onClick={handleGenerate} disabled={generating}>
                 <Download className="w-4 h-4" />
-                Generate
+                {generating ? 'Generating…' : 'Generate'}
               </Button>
             </div>
           </div>
