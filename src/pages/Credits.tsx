@@ -14,9 +14,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Plus, ExternalLink, Calendar, DollarSign } from 'lucide-react';
+import { AddCreditDialog } from '@/components/credits/AddCreditDialog';
 
 export default function Credits() {
-  const { credits, alerts, getCreditSummary } = useCarbonData();
+  const { credits, alerts, getCreditSummary, addCredit } = useCarbonData();
   const creditSummary = getCreditSummary();
   const unresolvedAlerts = alerts.filter(a => !a.resolved);
 
@@ -88,10 +89,7 @@ export default function Credits() {
               <CardTitle className="text-lg">Carbon Credit Portfolio</CardTitle>
               <CardDescription>All purchased carbon credits and their status</CardDescription>
             </div>
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              Add Credit
-            </Button>
+            <AddCreditDialog onAdd={addCredit} />
           </div>
         </CardHeader>
         <CardContent>
