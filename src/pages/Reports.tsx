@@ -275,7 +275,7 @@ export default function Reports() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{report.type}</Badge>
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" onClick={handleGenerate}>
                     <Download className="w-4 h-4" />
                   </Button>
                 </div>
