@@ -101,7 +101,7 @@ export function generatePDFReport(data: ReportData): void {
         e.source,
         e.value.toFixed(2),
         e.unit,
-        e.co2_equivalent.toFixed(2),
+        e.co2Equivalent.toFixed(2),
       ]),
       headStyles: { fillColor: [34, 139, 87] },
       styles: { fontSize: 8 },
@@ -117,13 +117,13 @@ export function generatePDFReport(data: ReportData): void {
       startY: 25,
       head: [['Project', 'Type', 'Quantity', 'Used', 'Cost', 'Status', 'Expiry']],
       body: data.credits.map((c) => [
-        c.project_name,
+        c.projectName,
         c.type,
         c.quantity.toLocaleString(),
-        c.used_quantity.toLocaleString(),
+        c.usedQuantity.toLocaleString(),
         `${c.currency} ${c.cost.toLocaleString()}`,
         c.status,
-        new Date(c.expiry_date).toLocaleDateString(),
+        new Date(c.expiryDate).toLocaleDateString(),
       ]),
       headStyles: { fillColor: [34, 139, 87] },
       styles: { fontSize: 8 },
@@ -180,7 +180,7 @@ export function generateExcelReport(data: ReportData): void {
         Source: e.source,
         Value: e.value,
         Unit: e.unit,
-        'CO2e (kg)': e.co2_equivalent,
+        'CO2e (kg)': e.co2Equivalent,
         Notes: e.notes || '',
       }))
     );
@@ -191,16 +191,16 @@ export function generateExcelReport(data: ReportData): void {
   if (data.credits.length > 0) {
     const creditsSheet = XLSX.utils.json_to_sheet(
       data.credits.map((c) => ({
-        Project: c.project_name,
+        Project: c.projectName,
         Type: c.type,
         Quantity: c.quantity,
-        Used: c.used_quantity,
-        Available: c.quantity - c.used_quantity,
+        Used: c.usedQuantity,
+        Available: c.quantity - c.usedQuantity,
         Cost: c.cost,
         Currency: c.currency,
         Status: c.status,
-        'Purchase Date': new Date(c.purchase_date).toLocaleDateString(),
-        'Expiry Date': new Date(c.expiry_date).toLocaleDateString(),
+        'Purchase Date': new Date(c.purchaseDate).toLocaleDateString(),
+        'Expiry Date': new Date(c.expiryDate).toLocaleDateString(),
       }))
     );
     XLSX.utils.book_append_sheet(wb, creditsSheet, 'Credits');
@@ -210,7 +210,7 @@ export function generateExcelReport(data: ReportData): void {
   if (data.alerts.length > 0) {
     const alertsSheet = XLSX.utils.json_to_sheet(
       data.alerts.map((a) => ({
-        Date: new Date(a.created_at).toLocaleDateString(),
+        Date: new Date(a.detectedAt).toLocaleDateString(),
         Type: a.type,
         Severity: a.severity,
         Message: a.message,
